@@ -22,6 +22,8 @@
 #include <winrt/Windows.Storage.Streams.h>
 #include <winrt/Windows.Graphics.h>
 
+#include "JsonHelper.h"
+
 inline constexpr std::wstring_view ImageMetadataStorageTag = L"/app1/ifd/exif/{ushort=37500}";
 
 constexpr auto c_keySizeInBytes = 32;
@@ -49,28 +51,6 @@ inline HRESULT HResultFromBCryptStatus(NTSTATUS status)
     RETURN_HR_IF_EXPECTED((HRESULT)STATUS_AUTH_TAG_MISMATCH, status == STATUS_AUTH_TAG_MISMATCH);
     RETURN_IF_NTSTATUS_FAILED_EXPECTED(status);
     return S_OK;
-}
-
-winrt::JsonObject SeralizeValueSetToJSON(winrt::ValueSet const& valueSet)
-{
-    winrt::JsonObject jsonObject;
-    for (auto&& pair : valueSet)
-    {
-        if (auto nestedValueSet = pair.Value().try_as<winrt::ValueSet>())
-        {
-            jsonObject.Insert(pair.Key(), SeralizeValueSetToJSON(nestedValueSet));
-        }
-        else if (pair.Value().try_as<winrt::hstring>())
-        {
-            jsonObject.Insert(pair.Key(), winrt::JsonValue::CreateStringValue(winrt::unbox_value<winrt::hstring>(pair.Value()).c_str()));
-        }
-        else if (pair.Value().try_as<int>())
-        {
-            jsonObject.Insert(pair.Key(), winrt::JsonValue::CreateNumberValue(winrt::unbox_value<int>(pair.Value())));
-        }
-    }
-    
-    return jsonObject;
 }
 
 void WriteJSONToFile(winrt::JsonObject const& jsonObject, winrt::hstring const& fileName, winrt::StorageFolder const& outputFolder)
@@ -273,7 +253,7 @@ void WriteImageAndMetadataToOutputFolder(winrt::StorageFile const& file, winrt::
     auto valueSet = TryGetSnapshotMetadataAsync(decryptedStream);
     if (valueSet)
     {
-        auto jsonObject = SeralizeValueSetToJSON(valueSet);
+        auto jsonObject = SerializeValueSet(valueSet);
         WriteJSONToFile(jsonObject, file.Name(), outputFolder);
     }
 }
